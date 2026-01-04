@@ -1,7 +1,7 @@
 {
   "name": "stt-windows",
   "version": "1.0.0",
-  "description": "",
+  "description": "A Windows Speech-to-Text utility using OpenAI Whisper.",
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
@@ -24,10 +24,12 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
-  "devDependencies": {
-    "electron": "^39.2.7",
-    "electron-builder": "^26.0.12",
+  "dependencies": {
     "electron-store": "^8.1.0",
     "openai": "^6.15.0"
+  },
+  "devDependencies": {
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12"
   }
 }
