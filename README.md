@@ -8,12 +8,12 @@ A premium, background speech-to-text utility for Windows. Record your voice with
 - **OpenAI Whisper** for high-accuracy transcription.
 - **Direct Injection**: Text is pasted at your cursor automatically.
 - **Modern UI**: Glassmorphism settings window with mic level feedback.
-- **Auto-start**: Option to launch when Windows boots.
+- **Auto-start**: Option to launch when Windows boots (This only works with the .exe executable).
 
 ## Quick Start
 
 ### 1. The Easy Way (Download Installer)
-Download the latest **`STT Windows Setup.exe`** from the [GitHub Releases](https://github.com/YourUsername/stt-windows/releases) page. Run the installer to enjoy a desktop shortcut and auto-start features.
+Download the latest **`STT Windows Setup.exe`** from the [GitHub Releases](https://github.com/JJSilvera1/stt-windows/releases) page. Run the installer to enjoy a desktop shortcut and auto-start features.
 
 ### 2. The Developer Way (Run from Code)
 If you have Node.js installed and want to run the app directly:
@@ -42,3 +42,5 @@ To generate your own standalone Windows installer:
 npm run dist
 ```
 Build artifacts will appear in the `/dist` folder.
+
+
