@@ -8,7 +8,7 @@ A premium, background speech-to-text utility for Windows. Record your voice with
 - **OpenAI Whisper** for high-accuracy transcription.
 - **Direct Injection**: Text is pasted at your cursor automatically.
 - **Modern UI**: Glassmorphism settings window with mic level feedback.
-- **Auto-start**: Option to launch when Windows boots.
+- **Auto-start**: Option to launch when Windows boots (This only works with the .exe executable).
 
 ## Quick Start
 
