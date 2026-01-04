@@ -1,5 +1,7 @@
 # STT Windows
 
+![STT Windows Preview](assets/Screenshot1.jpg)
+
 A premium, background speech-to-text utility for Windows. Record your voice with a global hotkey and have it transcribed and injected directly into your active text cursor using OpenAI Whisper.
 
 ## Features
