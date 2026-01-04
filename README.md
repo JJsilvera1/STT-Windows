@@ -1,7 +1,5 @@
 # STT Windows
 
-![STT Windows Preview](assets/Screenshot1.jpg)
-
 A premium, background speech-to-text utility for Windows. Record your voice with a global hotkey and have it transcribed and injected directly into your active text cursor using OpenAI Whisper.
 
 ## Features
@@ -45,4 +43,7 @@ npm run dist
 ```
 Build artifacts will appear in the `/dist` folder.
 
+<p align="center">
+  <img src="assets/Screenshot1.jpg" alt="STT Windows Preview" width="400">
+</p>
 
