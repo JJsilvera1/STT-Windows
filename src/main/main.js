@@ -98,57 +98,82 @@ function pasteText(text) {
     });
 }
 
-app.whenReady().then(() => {
-    createRecorderWindow();
+const gotTheLock = app.requestSingleInstanceLock();
 
-    // Setup Tray
-    tray = new Tray(path.join(__dirname, '../../assets/icon.png'));
-    const contextMenu = Menu.buildFromTemplate([
-        { label: 'Settings', click: createSettingsWindow },
-        { type: 'separator' },
-        { label: 'Quit', click: () => app.quit() }
-    ]);
-    tray.setContextMenu(contextMenu);
-    tray.setToolTip('STT Windows - Ready');
-
-    // Register Global Hotkey
-    const hotkey = store.get('hotkey');
-    globalShortcut.register(hotkey, toggleRecording);
-
-    // Setup startup setting
-    app.setLoginItemSettings({
-        openAtLogin: store.get('launchAtStartup'),
-        path: app.getPath('exe')
-    });
-
-    // Handle IPC from recorder
-    ipcMain.on('audio-transcribed', (event, text) => {
-        updateTrayIcon('idle');
-        if (text && text.trim()) {
-            pasteText(text);
-        }
-    });
-
-    ipcMain.on('audio-level', (event, level) => {
+if (!gotTheLock) {
+    app.quit();
+} else {
+    app.on('second-instance', (event, commandLine, workingDirectory) => {
+        // Someone tried to run a second instance, we should focus our window.
         if (mainWindow) {
-            mainWindow.webContents.send('mic-level', level);
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+        } else {
+            createSettingsWindow();
         }
     });
 
-    ipcMain.on('update-startup', (event, value) => {
+    app.whenReady().then(() => {
+        createRecorderWindow();
+
+        // Setup Tray
+        tray = new Tray(path.join(__dirname, '../../assets/icon.png'));
+        const contextMenu = Menu.buildFromTemplate([
+            { label: 'Settings', click: createSettingsWindow },
+            { type: 'separator' },
+            { label: 'Quit', click: () => app.quit() }
+        ]);
+        tray.setContextMenu(contextMenu);
+        tray.setToolTip('STT Windows - Ready');
+
+        // Double click tray icon to open settings
+        tray.on('double-click', createSettingsWindow);
+
+        // Register Global Hotkey
+        const hotkey = store.get('hotkey') || 'CmdOrCtrl+Shift+S';
+        globalShortcut.register(hotkey, toggleRecording);
+
+        // Setup startup setting
         app.setLoginItemSettings({
-            openAtLogin: value,
+            openAtLogin: store.get('launchAtStartup'),
             path: app.getPath('exe')
         });
-    });
 
-    // Re-register hotkey if changed
-    ipcMain.on('settings-changed', () => {
-        globalShortcut.unregisterAll();
-        const newHotkey = store.get('hotkey');
-        globalShortcut.register(newHotkey, toggleRecording);
+        // Handle IPC from recorder
+        ipcMain.on('audio-transcribed', (event, text) => {
+            updateTrayIcon('idle');
+            if (text && text.trim()) {
+                pasteText(text);
+            }
+        });
+
+        ipcMain.on('audio-level', (event, level) => {
+            if (mainWindow) {
+                mainWindow.webContents.send('mic-level', level);
+            }
+        });
+
+        ipcMain.on('update-startup', (event, value) => {
+            app.setLoginItemSettings({
+                openAtLogin: value,
+                path: app.getPath('exe')
+            });
+        });
+
+        // Re-register hotkey if changed and update recorder
+        ipcMain.on('settings-changed', () => {
+            globalShortcut.unregisterAll();
+            const newHotkey = store.get('hotkey') || 'CmdOrCtrl+Shift+S';
+            globalShortcut.register(newHotkey, toggleRecording);
+
+            if (recorderWindow) {
+                recorderWindow.webContents.send('settings-updated');
+            }
+        });
     });
-});
+}
+
 
 app.on('window-all-closed', (e) => {
     if (process.platform !== 'darwin') {

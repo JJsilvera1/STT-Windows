@@ -7,8 +7,20 @@ let audioChunks = [];
 let audioContext;
 let analyser;
 let micStream;
+let animationFrameId;
 
 async function setupMic() {
+    // Cleanup existing stream and context if they exist
+    if (micStream) {
+        micStream.getTracks().forEach(track => track.stop());
+    }
+    if (audioContext) {
+        await audioContext.close();
+    }
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+    }
+
     const deviceId = store.get('microphoneId');
     const constraints = {
         audio: deviceId ? { deviceId: { exact: deviceId } } : true
@@ -18,13 +30,14 @@ async function setupMic() {
         micStream = await navigator.mediaDevices.getUserMedia(constraints);
 
         // Audio analysis for level bar
-        audioContext = new AudioContext();
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const source = audioContext.createMediaStreamSource(micStream);
         analyser = audioContext.createAnalyser();
         analyser.fftSize = 256;
         source.connect(analyser);
 
         function updateLevel() {
+            if (!analyser) return;
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
             analyser.getByteFrequencyData(dataArray);
 
@@ -34,7 +47,7 @@ async function setupMic() {
             }
             const average = sum / dataArray.length;
             ipcRenderer.send('audio-level', average);
-            requestAnimationFrame(updateLevel);
+            animationFrameId = requestAnimationFrame(updateLevel);
         }
         updateLevel();
 
@@ -55,14 +68,8 @@ async function setupMic() {
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onload = async () => {
-                const base64Audio = reader.result.split(',')[1];
-                // Send to transcription service (to be implemented)
-                const text = await transcribeAudio(audioBlob, apiKey);
-                ipcRenderer.send('audio-transcribed', text);
-            };
-            reader.readAsDataURL(audioBlob);
+            const text = await transcribeAudio(audioBlob, apiKey);
+            ipcRenderer.send('audio-transcribed', text);
         };
 
     } catch (err) {
@@ -97,7 +104,7 @@ ipcRenderer.on('start-recording', () => {
         mediaRecorder.start();
     } else {
         setupMic().then(() => {
-            mediaRecorder.start();
+            if (mediaRecorder) mediaRecorder.start();
         });
     }
 });
@@ -106,6 +113,10 @@ ipcRenderer.on('stop-recording', () => {
     if (mediaRecorder && mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
     }
+});
+
+ipcRenderer.on('settings-updated', () => {
+    setupMic();
 });
 
 // Initial setup to allow device selection later

@@ -33,6 +33,7 @@ async function listMics() {
 }
 
 listMics();
+navigator.mediaDevices.addEventListener('devicechange', listMics);
 
 // Save values on change
 apiKeyInput.addEventListener('change', () => {
@@ -41,6 +42,7 @@ apiKeyInput.addEventListener('change', () => {
 
 micSelect.addEventListener('change', () => {
     store.set('microphoneId', micSelect.value);
+    ipcRenderer.send('settings-changed');
 });
 
 startupToggle.addEventListener('change', () => {
