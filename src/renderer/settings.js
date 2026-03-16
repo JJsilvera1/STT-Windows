@@ -8,6 +8,8 @@ const micSelect = document.getElementById('mic-select');
 const startupToggle = document.getElementById('startup-toggle');
 const closeBtn = document.getElementById('close-btn');
 const levelBar = document.getElementById('level-bar');
+const appVersion = document.getElementById('app-version');
+const packageInfo = require('../../package.json');
 
 let recordingHotkey = false;
 
@@ -15,11 +17,26 @@ let recordingHotkey = false;
 apiKeyInput.value = store.get('openaiApiKey') || '';
 hotkeyDisplay.innerText = store.get('hotkey') || 'CmdOrCtrl+Shift+S';
 startupToggle.checked = store.get('launchAtStartup') || false;
+appVersion.innerText = `v${packageInfo.version}`;
 
 // List microphones
+function getPreferredMicId(audioInputDevices, savedMicId) {
+    const savedDevice = audioInputDevices.find(device => device.deviceId === savedMicId);
+    if (savedDevice) {
+        return savedDevice.deviceId;
+    }
+
+    return (
+        audioInputDevices.find(device => device.deviceId === 'default')?.deviceId ||
+        audioInputDevices[0]?.deviceId ||
+        ''
+    );
+}
+
 async function listMics() {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const audioInputDevices = devices.filter(device => device.kind === 'audioinput');
+    const savedMicId = store.get('microphoneId');
 
     micSelect.innerHTML = '';
     audioInputDevices.forEach(device => {
@@ -29,7 +46,18 @@ async function listMics() {
         micSelect.appendChild(option);
     });
 
-    micSelect.value = store.get('microphoneId') || audioInputDevices[0]?.deviceId;
+    const preferredMicId = getPreferredMicId(audioInputDevices, savedMicId);
+    micSelect.value = preferredMicId;
+
+    if (preferredMicId && preferredMicId !== savedMicId) {
+        store.set('microphoneId', preferredMicId);
+        ipcRenderer.send('settings-changed');
+    }
+
+    if (!preferredMicId && savedMicId) {
+        store.delete('microphoneId');
+        ipcRenderer.send('settings-changed');
+    }
 }
 
 listMics();

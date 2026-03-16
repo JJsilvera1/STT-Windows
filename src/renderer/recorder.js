@@ -9,6 +9,36 @@ let analyser;
 let micStream;
 let animationFrameId;
 
+async function resolveAudioConstraints() {
+    const savedDeviceId = store.get('microphoneId');
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputDevices = devices.filter(device => device.kind === 'audioinput');
+
+    if (!audioInputDevices.length) {
+        store.delete('microphoneId');
+        return true;
+    }
+
+    const savedDevice = audioInputDevices.find(device => device.deviceId === savedDeviceId);
+    if (savedDevice) {
+        return { deviceId: { exact: savedDeviceId } };
+    }
+
+    const fallbackDevice =
+        audioInputDevices.find(device => device.deviceId === 'default') ||
+        audioInputDevices[0];
+
+    if (fallbackDevice?.deviceId) {
+        store.set('microphoneId', fallbackDevice.deviceId);
+    } else {
+        store.delete('microphoneId');
+    }
+
+    return fallbackDevice?.deviceId
+        ? { deviceId: { exact: fallbackDevice.deviceId } }
+        : true;
+}
+
 async function setupMic() {
     // Cleanup existing stream and context if they exist
     if (micStream) {
@@ -21,12 +51,10 @@ async function setupMic() {
         cancelAnimationFrame(animationFrameId);
     }
 
-    const deviceId = store.get('microphoneId');
-    const constraints = {
-        audio: deviceId ? { deviceId: { exact: deviceId } } : true
-    };
-
     try {
+        const constraints = {
+            audio: await resolveAudioConstraints()
+        };
         micStream = await navigator.mediaDevices.getUserMedia(constraints);
 
         // Audio analysis for level bar
@@ -116,6 +144,10 @@ ipcRenderer.on('stop-recording', () => {
 });
 
 ipcRenderer.on('settings-updated', () => {
+    setupMic();
+});
+
+navigator.mediaDevices.addEventListener('devicechange', () => {
     setupMic();
 });
 
