@@ -1,6 +1,6 @@
 {
   "name": "stt-windows",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A Windows Speech-to-Text utility using OpenAI Whisper.",
   "main": "src/main/main.js",
   "scripts": {

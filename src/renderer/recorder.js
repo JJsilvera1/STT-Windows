@@ -8,6 +8,9 @@ let audioContext;
 let analyser;
 let micStream;
 let animationFrameId;
+let healthCheckTimer;
+let setupMicPromise;
+let discardNextRecording = false;
 
 async function resolveAudioConstraints() {
     const savedDeviceId = store.get('microphoneId');
@@ -39,23 +42,103 @@ async function resolveAudioConstraints() {
         : true;
 }
 
-async function setupMic() {
-    // Cleanup existing stream and context if they exist
-    if (micStream) {
-        micStream.getTracks().forEach(track => track.stop());
-    }
-    if (audioContext) {
-        await audioContext.close();
-    }
+async function cleanupMic(discardRecording = false) {
     if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
     }
+
+    if (healthCheckTimer) {
+        clearInterval(healthCheckTimer);
+        healthCheckTimer = null;
+    }
+
+    analyser = null;
+
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        if (discardRecording) {
+            discardNextRecording = true;
+        }
+
+        try {
+            mediaRecorder.stop();
+        } catch (err) {
+            console.error('Error stopping recorder during cleanup:', err);
+        }
+    }
+
+    if (micStream) {
+        micStream.getTracks().forEach(track => track.stop());
+        micStream = null;
+    }
+
+    if (audioContext && audioContext.state !== 'closed') {
+        try {
+            await audioContext.close();
+        } catch (err) {
+            console.error('Error closing audio context:', err);
+        }
+    }
+    audioContext = null;
+    mediaRecorder = null;
+}
+
+function hasLiveMic() {
+    return micStream?.getAudioTracks().some(track => track.readyState === 'live');
+}
+
+function startMicHealthCheck() {
+    if (healthCheckTimer) {
+        clearInterval(healthCheckTimer);
+    }
+
+    healthCheckTimer = setInterval(async () => {
+        const audioTrack = micStream?.getAudioTracks()[0];
+
+        if (!audioTrack || audioTrack.readyState !== 'live') {
+            await setupMic();
+            return;
+        }
+
+        if (audioContext?.state === 'suspended') {
+            try {
+                await audioContext.resume();
+            } catch (err) {
+                console.error('Error resuming audio context:', err);
+                await setupMic();
+            }
+        }
+    }, 10000);
+}
+
+async function setupMic(discardRecording = false) {
+    if (setupMicPromise) {
+        return setupMicPromise;
+    }
+
+    setupMicPromise = setupMicInternal(discardRecording).finally(() => {
+        setupMicPromise = null;
+    });
+
+    return setupMicPromise;
+}
+
+async function setupMicInternal(discardRecording) {
+    await cleanupMic(discardRecording);
 
     try {
         const constraints = {
             audio: await resolveAudioConstraints()
         };
         micStream = await navigator.mediaDevices.getUserMedia(constraints);
+        micStream.getAudioTracks().forEach(track => {
+            track.addEventListener('ended', () => setupMic(true));
+            track.addEventListener('mute', () => {
+                setTimeout(() => {
+                    if (!hasLiveMic()) setupMic(true);
+                }, 1000);
+            });
+        });
 
         // Audio analysis for level bar
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -89,6 +172,12 @@ async function setupMic() {
             const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
             audioChunks = [];
 
+            if (discardNextRecording) {
+                discardNextRecording = false;
+                ipcRenderer.send('audio-transcribed', '');
+                return;
+            }
+
             const apiKey = store.get('openaiApiKey');
             if (!apiKey) {
                 console.error('No OpenAI API Key found in store');
@@ -99,6 +188,8 @@ async function setupMic() {
             const text = await transcribeAudio(audioBlob, apiKey);
             ipcRenderer.send('audio-transcribed', text);
         };
+
+        startMicHealthCheck();
 
     } catch (err) {
         console.error('Error accessing microphone:', err);
@@ -128,7 +219,7 @@ async function transcribeAudio(blob, apiKey) {
 }
 
 ipcRenderer.on('start-recording', () => {
-    if (mediaRecorder && mediaRecorder.state === 'inactive') {
+    if (mediaRecorder && mediaRecorder.state === 'inactive' && hasLiveMic()) {
         mediaRecorder.start();
     } else {
         setupMic().then(() => {
@@ -147,8 +238,17 @@ ipcRenderer.on('settings-updated', () => {
     setupMic();
 });
 
+ipcRenderer.on('refresh-microphone', (event, reason) => {
+    if (reason === 'suspend') {
+        cleanupMic(true);
+        return;
+    }
+
+    setupMic(true);
+});
+
 navigator.mediaDevices.addEventListener('devicechange', () => {
-    setupMic();
+    setupMic(true);
 });
 
 // Initial setup to allow device selection later

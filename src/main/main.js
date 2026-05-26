@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, Tray, Menu, ipcMain, shell, clipboard } = require('electron');
+const { app, BrowserWindow, globalShortcut, Tray, Menu, ipcMain, shell, clipboard, powerMonitor } = require('electron');
 const path = require('path');
 const Store = require('electron-store');
 const { exec } = require('child_process');
@@ -64,6 +64,12 @@ function stopRecording() {
     isRecording = false;
     updateTrayIcon('processing');
     recorderWindow.webContents.send('stop-recording');
+}
+
+function refreshMicrophone(reason) {
+    if (recorderWindow && !recorderWindow.isDestroyed()) {
+        recorderWindow.webContents.send('refresh-microphone', reason);
+    }
 }
 
 function updateTrayIcon(state) {
@@ -170,6 +176,23 @@ if (!gotTheLock) {
             if (recorderWindow) {
                 recorderWindow.webContents.send('settings-updated');
             }
+        });
+
+        powerMonitor.on('suspend', () => {
+            isRecording = false;
+            updateTrayIcon('idle');
+            refreshMicrophone('suspend');
+        });
+
+        powerMonitor.on('resume', () => {
+            isRecording = false;
+            updateTrayIcon('idle');
+            setTimeout(() => refreshMicrophone('resume'), 1000);
+            setTimeout(() => refreshMicrophone('resume-retry'), 4000);
+        });
+
+        powerMonitor.on('unlock-screen', () => {
+            setTimeout(() => refreshMicrophone('unlock-screen'), 1000);
         });
     });
 }
